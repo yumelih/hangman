@@ -6,15 +6,67 @@ from arcade.gui import (
     UITextureButton,
     UIBoxLayout,
     UIInputText,
-    UIOnChangeEvent
+    UIOnChangeEvent,
+    UILabel
 )
 from resources.constants.constants import LIST_OF_KEYS
-from logic.game_logic import GameLogic
+from logic.game_logic import GameLogic, Status
 from pathlib import Path
 
 TEX_RED_BUTTON_NORMAL = arcade.load_texture(":resources:gui_basic_assets/button/red_normal.png")
 TEX_RED_BUTTON_HOVER = arcade.load_texture(":resources:gui_basic_assets/button/red_hover.png")
 TEX_RED_BUTTON_PRESS = arcade.load_texture(":resources:gui_basic_assets/button/red_press.png")
+
+class GameOverView(arcade.gui.UIView):
+    def __init__(self):
+        super().__init__()
+        arcade.set_background_color(arcade.color.BRUNSWICK_GREEN)
+        
+        self.anchor = UIAnchorLayout()
+        self.ui.add(self.anchor)
+
+        self.box_layout = UIBoxLayout(space_between=20)
+        self.anchor.add(self.box_layout, anchor_x='center', anchor_y='center')
+
+        title = UILabel('Game Over', width=200, font_size=24, text_color=arcade.color.FLORAL_WHITE)
+
+        restart_button = self.box_layout.add(
+            UITextureButton(
+                text="Restart",
+                texture=TEX_RED_BUTTON_NORMAL,
+                texture_pressed=TEX_RED_BUTTON_PRESS,
+                texture_hovered=TEX_RED_BUTTON_HOVER
+            ),
+        )
+        exit_button = self.box_layout.add(
+            UITextureButton(
+                text="Exit",
+                texture=TEX_RED_BUTTON_NORMAL,
+                texture_pressed=TEX_RED_BUTTON_PRESS,
+                texture_hovered=TEX_RED_BUTTON_HOVER
+            )
+        )
+        
+        self.box_layout.add(title)
+        self.box_layout.add(restart_button)
+        self.box_layout.add(exit_button)
+
+
+        @restart_button.event('on_click')
+        def restart_button_click(event):
+            game_view = GameView()
+            self.window.show_view(game_view)
+
+        @exit_button.event('on_click')
+        def exit_button_click(event):
+            self.window.close()
+
+
+    def on_draw_before_ui(self):
+        arcade.set_background_color(arcade.color.BRUNSWICK_GREEN)
+
+    def on_draw_after_ui(self):
+        pass
 
 class GameView(arcade.View):
     def __init__(self):
@@ -50,9 +102,24 @@ class GameView(arcade.View):
             )
         )
 
+        self.notify_toast = UILabel(
+            text='',
+            font_size=24,
+            text_color=arcade.color.WHITE,
+            width=300,
+            align='center'
+        )
+        self.notify_toast.with_background(color=arcade.color.AIR_FORCE_BLUE)
+        self.notify_toast.with_padding(all=20)
+
+        self.notify_toast_visible = False
+        self.notify_toast_visible_time = 0.0
+        self.TOAST_VISIBLE = 5.0
+
         self.text_input = UIInputText(text="Make a guess", width=300)
         self.text_input_visible = False
         self.guessed_letter = ''
+        
 
         @self.text_input.event('on_click')
         def on_click(event):
@@ -110,12 +177,40 @@ class GameView(arcade.View):
         self.letter_lines = letter_lines
 
     def on_guess_letter(self):
-        self.game_logic.guess_letter(self.guessed_letter)
+        response = self.game_logic.guess_letter(self.guessed_letter)
+
+        if self.notify_toast_visible:
+            self.anchor.remove(self.notify_toast)
+            self.ui.trigger_render()
+
+        match response:
+            case Status.SUCCESS:
+                self.notify_toast.text = 'Success, You Won!'
+            case Status.CORRECT_LETTER_GUESS:
+                self.notify_toast.text = 'Correct Guess!'
+            case Status.ALREADY_GUESSED:
+                self.notify_toast.text = 'Already Guessed the Letter'
+            case Status.LETTER_DONT_EXIST:
+                self.notify_toast.text = 'Wrong Guess!'
+            case Status.FAILED:
+                self.notify_toast.text = 'You Lost :('
+                game_over_view = GameOverView()
+                self.window.show_view(game_over_view)
+                
+
+        self.anchor.add(self.notify_toast, anchor_x="center", anchor_y="top")
+        self.notify_toast_visible = True
 
         for index, elm in enumerate(self.game_logic.user_progress):
             if elm:
                 self.letter_lines[index]['guessed'] = True
 
+    def on_update(self, delta_time: float):
+        if self.notify_toast_visible:
+            self.notify_toast_visible_time += delta_time
+
+        if self.notify_toast_visible and self.notify_toast_visible_time > self.TOAST_VISIBLE:
+            self.notify_toast_visible = False
     
     def on_draw(self): # this is a function used to draw sprites, text anything on the screen basically.
         self.clear()
@@ -125,6 +220,14 @@ class GameView(arcade.View):
 
         for item in self.wrong_guessed_letters:
             item.draw()
+
+        self.draw_number_of_mistakes()
+        self.number_of_mistakes.draw()
+
+        if not self.notify_toast_visible and self.notify_toast_visible_time > self.TOAST_VISIBLE:
+            self.anchor.remove(self.notify_toast)
+            self.notify_toast_visible_time = 0.0
+            self.ui.trigger_render()
 
         self.ui.draw()
         # arcade.draw_lines(self.lines, arcade.color.ALLOY_ORANGE, 5)            
@@ -143,6 +246,16 @@ class GameView(arcade.View):
                 font_name="Permanent Marker",
                 font_size=18
             ))
+
+    def draw_number_of_mistakes(self):
+        corner_distance = 50
+        self.number_of_mistakes = arcade.Text(
+            f"{self.game_logic.get_fail_count()}/{GameLogic.MAXIMUM_TRIES}",
+            self.window.width - corner_distance,
+            self.window.height - corner_distance,
+            font_name="Permanent Marker",
+            font_size=18
+        )
 
     def handle_word_line_draw(self):
         underscore_width = 40
@@ -166,6 +279,7 @@ class GameView(arcade.View):
             self.anchor.remove(self.text_input)
             self.text_input_visible = False
             self.ui.trigger_render()
+            self.text_input.text = ''
 
             self.on_guess_letter()
 

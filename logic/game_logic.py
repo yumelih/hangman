@@ -19,14 +19,16 @@ class GameLogic():
         self.user_progress = []
         self.wrong_guessed_letters = []
         self.wrong_guessed_words = []
-        self.fail_count = len(self.wrong_guessed_letters) + len(self.wrong_guessed_words)
+
+    def get_fail_count(self):
+        return len(self.wrong_guessed_letters) + len(self.wrong_guessed_words)
 
     def generate_word(self):
         self.word = random.choice(list(GameLogic.english_dict.keys())).lower()
         self.user_progress = [None] * len(self.word)
 
     def guess_letter(self, letter: str):
-        if self.wrong_guessed_letters.count(letter) != 0:
+        if self.wrong_guessed_letters.count(letter) != 0 or self.user_progress.count(letter) != 0:
             return Status.ALREADY_GUESSED
         
         if self.word.find(letter) == -1:
@@ -36,6 +38,9 @@ class GameLogic():
         for i in range(len(self.user_progress)):
             if self.word[i] == letter:
                 self.user_progress[i] = letter
+
+        if None not in self.user_progress:
+            return Status.SUCCESS
 
         return Status.CORRECT_LETTER_GUESS
 

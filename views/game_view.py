@@ -85,6 +85,15 @@ class GameView(arcade.View):
         self.box_layout = UIBoxLayout(space_between=20, vertical=False)
         self.anchor.add(self.box_layout, anchor_x="center", anchor_y="bottom", align_y=100)
 
+        self.score = 0
+        self.score_label = UILabel(text=f"Score: {self.score}", font_size=24, text_color=arcade.color.GHOST_WHITE)
+        self.anchor.add(
+            self.score_label,
+            anchor_x='center', 
+            anchor_y='top', 
+            align_y=-50
+        )
+
         guess_letter_button = self.box_layout.add(
             UITextureButton(
                 text="Guess the letter",
@@ -101,6 +110,7 @@ class GameView(arcade.View):
                 texture_hovered=TEX_RED_BUTTON_HOVER
             )
         )
+        print(self.game_logic.word)
 
         self.notify_toast = UILabel(
             text='',
@@ -119,7 +129,24 @@ class GameView(arcade.View):
         self.text_input = UIInputText(text="Make a guess", width=300)
         self.text_input_visible = False
         self.guessed_letter = ''
-        
+
+        self.text_input_word = UIInputText(text="Guess the word", width=300)
+        self.text_input_word_visible = False
+        self.guessed_word = ''
+
+        @guess_letter_button.event("on_click")
+        def on_click(event):
+            if self.text_input_word_visible:
+                self.anchor.remove(self.text_input_word)
+                self.text_input_word_visible = False
+
+            if not self.text_input_visible:
+                self.anchor.add(self.text_input, anchor_x='center', anchor_y='center', align_y=-100)
+                self.text_input_visible = True
+            else:
+                self.anchor.remove(self.text_input)
+                self.text_input_visible = False
+            self.ui.trigger_render()
 
         @self.text_input.event('on_click')
         def on_click(event):
@@ -134,21 +161,36 @@ class GameView(arcade.View):
                 self.text_input.invalid = False
                 self.guessed_letter = event.new_value.lower()
 
-        @guess_letter_button.event("on_click")
-        def on_click(event):
-            if not self.text_input_visible:
-                self.anchor.add(self.text_input, anchor_x='center', anchor_y='center', align_y=-100)
-                self.text_input_visible = True
-            else:
-                self.anchor.remove(self.text_input)
-                self.text_input_visible = False
-            self.ui.trigger_render()
 
         @guess_word_button.event("on_click")
         def on_click(event):
-            print(event)
+            if self.text_input_visible:
+                self.anchor.remove(self.text_input)
+                self.text_input_visible = False
 
-        # self.random_text = arcade.Text("WAR", x=100, y=100, color=arcade.color.CAMOUFLAGE_GREEN, font_name=('Permanent Marker'), font_size=20)
+            if not self.text_input_word_visible:
+                self.anchor.add(self.text_input_word, anchor_x='center', anchor_y='center', align_y=-100)
+                self.text_input_word_visible = True
+            else: 
+                self.anchor.remove(self.text_input_word)
+                self.text_input_visible = False
+            self.ui.trigger_render()
+
+        @self.text_input_word.event('on_click')
+        def on_click(event):
+            self.text_input_word.text = ''
+
+        @self.text_input_word.event("on_change")
+        def on_change(event: UIOnChangeEvent):
+            if not event.new_value.isalpha():
+                self.text_input_word.invalid = True
+                self.text_input_word.text = event.new_value[:-1]
+            else:
+                self.text_input_word.invalid = False
+                self.guessed_word = event.new_value.lower()
+                self.text_input_word.deactivate()
+                self.text_input_word.activate()
+
 
     def setup(self):
         self.game_logic.reset()
@@ -175,8 +217,10 @@ class GameView(arcade.View):
             # lines.append((x, start_y))
             # lines.append((x + underscore_width, start_y))
         self.letter_lines = letter_lines
+        
 
     def on_guess_letter(self):
+        earlier_user_progress = self.game_logic.user_progress
         response = self.game_logic.guess_letter(self.guessed_letter)
 
         if self.notify_toast_visible:
@@ -186,6 +230,9 @@ class GameView(arcade.View):
         match response:
             case Status.SUCCESS:
                 self.notify_toast.text = 'Success, You Won!'
+                self.score += self.game_logic.calculate_score(earlier_user_progress)
+                self.score_label.text = f"Score: {self.score}"
+                self.setup()
             case Status.CORRECT_LETTER_GUESS:
                 self.notify_toast.text = 'Correct Guess!'
             case Status.ALREADY_GUESSED:
@@ -205,6 +252,32 @@ class GameView(arcade.View):
             if elm:
                 self.letter_lines[index]['guessed'] = True
 
+    def on_guess_word(self):
+        earlier_user_progress = self.game_logic.user_progress
+        response = self.game_logic.guess_word(self.guessed_word)
+
+        if self.notify_toast_visible:
+            self.anchor.remove(self.notify_toast)
+            self.ui.trigger_render()
+
+        match response:
+            case Status.SUCCESS:
+                self.notify_toast.text = 'Success, You Won!'
+                self.score += self.game_logic.calculate_score(earlier_user_progress, True)
+                self.score_label.text = f"Score: {self.score}"
+                self.setup()
+            case Status.ALREADY_GUESSED:
+                self.notify_toast.text = 'Already Guessed the Letter'
+            case Status.WORD_DONT_MATCH:
+                self.notify_toast.text = 'Wrong Guess!'
+            case Status.FAILED:
+                self.notify_toast.text = 'You Lost :('
+                game_over_view = GameOverView()
+                self.window.show_view(game_over_view)
+        
+        self.anchor.add(self.notify_toast, anchor_x="center", anchor_y="top")
+        self.notify_toast_visible = True
+        
     def on_update(self, delta_time: float):
         if self.notify_toast_visible:
             self.notify_toast_visible_time += delta_time
@@ -219,6 +292,10 @@ class GameView(arcade.View):
         self.draw_wrong_guessed_letters()
 
         for item in self.wrong_guessed_letters:
+            item.draw()
+
+        self.draw_wrong_guessed_words()
+        for item in self.wrong_guessed_words:
             item.draw()
 
         self.draw_number_of_mistakes()
@@ -243,6 +320,21 @@ class GameView(arcade.View):
                 letter.upper(),
                 corner_distance * (index + 1),
                 self.window.height - corner_distance,
+                font_name="Permanent Marker",
+                font_size=18
+            ))
+
+    def draw_wrong_guessed_words(self):
+        corner_distance_x = 50
+        corner_distance_y = 100
+        y_distance = 50
+        self.wrong_guessed_words = []
+
+        for index, letter in enumerate(self.game_logic.wrong_guessed_words):
+            self.wrong_guessed_words.append(arcade.Text(
+                letter.upper(),
+                corner_distance_x,
+                (self.window.height - corner_distance_y) - (y_distance * (index + 1)) ,
                 font_name="Permanent Marker",
                 font_size=18
             ))
@@ -274,12 +366,19 @@ class GameView(arcade.View):
         self.ui.disable()
 
     def on_key_press(self, symbol,  modifiers):
-        if symbol == arcade.key.ENTER and not self.text_input.invalid:
+        if symbol == arcade.key.ENTER and not self.text_input.invalid and self.text_input_visible:
             print("TEXT", self.text_input.text)
             self.anchor.remove(self.text_input)
             self.text_input_visible = False
             self.ui.trigger_render()
             self.text_input.text = ''
-
             self.on_guess_letter()
+
+        if symbol == arcade.key.ENTER and not self.text_input_word.invalid and self.text_input_word_visible:
+            self.anchor.remove(self.text_input_word)
+            self.text_input_word_visible = False
+            self.ui.trigger_render()
+            self.text_input_word.text = ''
+            self.on_guess_word()
+        
 

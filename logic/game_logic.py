@@ -45,6 +45,9 @@ class GameLogic():
         return Status.CORRECT_LETTER_GUESS
 
     def guess_word(self, guess_word):
+        if self.wrong_guessed_words.count(guess_word.lower()) != 0:
+            return Status.ALREADY_GUESSED
+
         if self.word != guess_word:
             self.wrong_guessed_words.append(guess_word)
             return self.check_is_failed(Status.WORD_DONT_MATCH)
@@ -58,6 +61,27 @@ class GameLogic():
         if(fail_rate >= GameLogic.MAXIMUM_TRIES):
             return Status.FAILED
         return custom_error
+
+    def calculate_score(self, earlier_user_progress, is_word_guess: bool = False):
+        score = 10
+        points_for_letter = 5
+        points_for_wrong_guess = 2
+        one_hit = 20
+
+        number_of_missing_letters = earlier_user_progress.count(None)
+        completed_letter_score = number_of_missing_letters * points_for_letter
+        score += completed_letter_score
+
+        score -= (points_for_wrong_guess * self.get_fail_count())
+
+        if is_word_guess and number_of_missing_letters == len(self.word):
+            score += one_hit
+
+
+        print("SCORE", number_of_missing_letters, completed_letter_score)
+
+        return score
+            
 
     def reset(self):
         self.word = ''

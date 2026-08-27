@@ -19,6 +19,7 @@ class GameLogic():
         self.user_progress = []
         self.wrong_guessed_letters = []
         self.wrong_guessed_words = []
+        self.correct_word_guesses = []
 
     def get_fail_count(self):
         return len(self.wrong_guessed_letters) + len(self.wrong_guessed_words)
@@ -40,6 +41,8 @@ class GameLogic():
                 self.user_progress[i] = letter
 
         if None not in self.user_progress:
+            self.correct_word_guesses.append(self.word)
+
             return Status.SUCCESS
 
         return Status.CORRECT_LETTER_GUESS
@@ -53,6 +56,7 @@ class GameLogic():
             return self.check_is_failed(Status.WORD_DONT_MATCH)
 
         self.user_progress = list(self.word)
+        self.correct_word_guesses.append(self.word)
         
         return Status.SUCCESS
 
@@ -76,9 +80,6 @@ class GameLogic():
 
         if is_word_guess and number_of_missing_letters == len(self.word):
             score += one_hit
-
-
-        print("SCORE", number_of_missing_letters, completed_letter_score)
 
         return score
             

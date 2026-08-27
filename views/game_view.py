@@ -29,7 +29,10 @@ class GameOverView(arcade.gui.UIView):
         self.anchor.add(self.box_layout, anchor_x='center', anchor_y='center')
 
         title = UILabel('Game Over', width=200, font_size=24, text_color=arcade.color.FLORAL_WHITE)
+        total_score = UILabel(f'Total Score: {self.window.total_score}', width=200, font_size=24, text_color=arcade.color.FLORAL_WHITE)
+        self.anchor.add(total_score, anchor_x='left', anchor_y='top', align_x=20, align_y=-20)
 
+        self.box_layout.add(title)
         restart_button = self.box_layout.add(
             UITextureButton(
                 text="Restart",
@@ -46,11 +49,6 @@ class GameOverView(arcade.gui.UIView):
                 texture_hovered=TEX_RED_BUTTON_HOVER
             )
         )
-        
-        self.box_layout.add(title)
-        self.box_layout.add(restart_button)
-        self.box_layout.add(exit_button)
-
 
         @restart_button.event('on_click')
         def restart_button_click(event):
@@ -94,6 +92,24 @@ class GameView(arcade.View):
             align_y=-50
         )
 
+        wrong_guesses_label = UILabel(text=f"Wrong Guesses: ", font_size=24, text_color=arcade.color.GHOST_WHITE)
+        self.anchor.add(
+            wrong_guesses_label,
+            anchor_x='left', 
+            anchor_y='top', 
+            align_y=-20,
+            align_x=20
+        )
+
+        correct_guesses_label = UILabel(text=f"Correct Guesses: ", font_size=24, text_color=arcade.color.GHOST_WHITE)
+        self.anchor.add(
+            correct_guesses_label,
+            anchor_x='left', 
+            anchor_y='top', 
+            align_y=-(self.window.height / 2) - 20,
+            align_x=20
+        )
+
         guess_letter_button = self.box_layout.add(
             UITextureButton(
                 text="Guess the letter",
@@ -110,7 +126,6 @@ class GameView(arcade.View):
                 texture_hovered=TEX_RED_BUTTON_HOVER
             )
         )
-        print(self.game_logic.word)
 
         self.notify_toast = UILabel(
             text='',
@@ -196,6 +211,7 @@ class GameView(arcade.View):
         self.game_logic.reset()
         self.game_logic.generate_word()
         self.generate_word_list()
+        print(self.game_logic.word)
 
     def generate_word_list(self):
         letter_width = 50
@@ -231,6 +247,7 @@ class GameView(arcade.View):
             case Status.SUCCESS:
                 self.notify_toast.text = 'Success, You Won!'
                 self.score += self.game_logic.calculate_score(earlier_user_progress)
+                self.window.total_score += self.game_logic.calculate_score(earlier_user_progress)
                 self.score_label.text = f"Score: {self.score}"
                 self.setup()
             case Status.CORRECT_LETTER_GUESS:
@@ -264,6 +281,7 @@ class GameView(arcade.View):
             case Status.SUCCESS:
                 self.notify_toast.text = 'Success, You Won!'
                 self.score += self.game_logic.calculate_score(earlier_user_progress, True)
+                self.window.total_score += self.game_logic.calculate_score(earlier_user_progress, True)
                 self.score_label.text = f"Score: {self.score}"
                 self.setup()
             case Status.ALREADY_GUESSED:
@@ -301,6 +319,10 @@ class GameView(arcade.View):
         self.draw_number_of_mistakes()
         self.number_of_mistakes.draw()
 
+        self.draw_correct_guessed_letters()
+        for item in self.correct_guessed_words:
+            item.draw()
+
         if not self.notify_toast_visible and self.notify_toast_visible_time > self.TOAST_VISIBLE:
             self.anchor.remove(self.notify_toast)
             self.notify_toast_visible_time = 0.0
@@ -311,17 +333,33 @@ class GameView(arcade.View):
         
         # self.random_text.draw()
 
+    def draw_correct_guessed_letters(self):
+        corner_distance_x = 50
+        corner_distance_y = (self.window.height / 2) - 100
+        distance_between_elm = 20
+
+        self.correct_guessed_words = []
+        for index, word in enumerate(self.game_logic.correct_word_guesses):
+            self.correct_guessed_words.append(arcade.Text(
+                word,
+                corner_distance_x,
+                corner_distance_y - (index * distance_between_elm),
+                font_name="Permanent Marker",
+                font_size=16
+            )) 
+
     def draw_wrong_guessed_letters(self):
-        corner_distance = 50
+        corner_distance_x = 50
+        corner_distance_y = 90
         self.wrong_guessed_letters = []
 
         for index, letter in enumerate(self.game_logic.wrong_guessed_letters):
             self.wrong_guessed_letters.append(arcade.Text(
                 letter.upper(),
-                corner_distance * (index + 1),
-                self.window.height - corner_distance,
+                corner_distance_x * (index + 1),
+                self.window.height - corner_distance_y,
                 font_name="Permanent Marker",
-                font_size=18
+                font_size=16
             ))
 
     def draw_wrong_guessed_words(self):
@@ -336,7 +374,7 @@ class GameView(arcade.View):
                 corner_distance_x,
                 (self.window.height - corner_distance_y) - (y_distance * (index + 1)) ,
                 font_name="Permanent Marker",
-                font_size=18
+                font_size=16
             ))
 
     def draw_number_of_mistakes(self):

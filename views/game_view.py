@@ -83,6 +83,11 @@ class GameView(arcade.View):
         self.box_layout = UIBoxLayout(space_between=20, vertical=False)
         self.anchor.add(self.box_layout, anchor_x="center", anchor_y="bottom", align_y=100)
 
+        self.sprite_list = arcade.SpriteList()
+        gallow_texture = arcade.load_texture('resources/images/gallow.png')
+        self.gallow_sprite = arcade.Sprite(gallow_texture, center_x=self.window.width - 150, center_y=(self.window.height / 2) + 20, scale=0.5)
+        self.sprite_list.append(self.gallow_sprite)
+
         self.score = 0
         self.score_label = UILabel(text=f"Score: {self.score}", font_size=24, text_color=arcade.color.GHOST_WHITE)
         self.anchor.add(
@@ -91,6 +96,9 @@ class GameView(arcade.View):
             anchor_y='top', 
             align_y=-50
         )
+
+        self.total_time = 300
+        self.timer_text = arcade.Text("Time: 01:00", self.window.width / 2 - 100, self.window.height - 35, color=arcade.color.GHOST_WHITE, font_name="Permanent Marker", font_size=24, width=200, align='center')
 
         wrong_guesses_label = UILabel(text=f"Wrong Guesses: ", font_size=24, text_color=arcade.color.GHOST_WHITE)
         self.anchor.add(
@@ -158,6 +166,7 @@ class GameView(arcade.View):
             if not self.text_input_visible:
                 self.anchor.add(self.text_input, anchor_x='center', anchor_y='center', align_y=-100)
                 self.text_input_visible = True
+                self.text_input.activate()
             else:
                 self.anchor.remove(self.text_input)
                 self.text_input_visible = False
@@ -186,6 +195,7 @@ class GameView(arcade.View):
             if not self.text_input_word_visible:
                 self.anchor.add(self.text_input_word, anchor_x='center', anchor_y='center', align_y=-100)
                 self.text_input_word_visible = True
+                self.text_input_word.activate()
             else: 
                 self.anchor.remove(self.text_input_word)
                 self.text_input_visible = False
@@ -211,6 +221,7 @@ class GameView(arcade.View):
         self.game_logic.reset()
         self.game_logic.generate_word()
         self.generate_word_list()
+        self.total_time = 300
         print(self.game_logic.word)
 
     def generate_word_list(self):
@@ -297,11 +308,17 @@ class GameView(arcade.View):
         self.notify_toast_visible = True
         
     def on_update(self, delta_time: float):
+        self.total_time -= delta_time
+
         if self.notify_toast_visible:
             self.notify_toast_visible_time += delta_time
 
         if self.notify_toast_visible and self.notify_toast_visible_time > self.TOAST_VISIBLE:
             self.notify_toast_visible = False
+
+        if self.total_time < 0:
+            self.setup()
+            self.ui.trigger_render()
     
     def on_draw(self): # this is a function used to draw sprites, text anything on the screen basically.
         self.clear()
@@ -328,10 +345,16 @@ class GameView(arcade.View):
             self.notify_toast_visible_time = 0.0
             self.ui.trigger_render()
 
+        self.sprite_list.draw()
+        self.draw_hangman()
+
         self.ui.draw()
-        # arcade.draw_lines(self.lines, arcade.color.ALLOY_ORANGE, 5)            
         
-        # self.random_text.draw()
+        minutes = int(self.total_time) // 60
+        seconds = int(self.total_time) % 60
+
+        self.timer_text.text = f"Time: {minutes:02d}:{seconds:02d}"
+        self.timer_text.draw()
 
     def draw_correct_guessed_letters(self):
         corner_distance_x = 50
@@ -386,6 +409,67 @@ class GameView(arcade.View):
             font_name="Permanent Marker",
             font_size=18
         )
+
+    def draw_hangman(self):
+        gallow_position_x = self.window.width - 250
+        gallow_position_y = self.window.height / 2 + 20
+
+        hangman_parts = [
+            (
+                gallow_position_x, 
+                gallow_position_y, 
+                20, 
+                arcade.color.RICH_BLACK, 
+                5
+            ),
+            (
+                gallow_position_x,
+                gallow_position_y - 20,
+                gallow_position_x,
+                gallow_position_y - 60,
+                arcade.color.RICH_BLACK,
+                5
+            ),
+            (
+                gallow_position_x,
+                gallow_position_y - 20,
+                gallow_position_x + 20,
+                gallow_position_y - 40,
+                arcade.color.RICH_BLACK,
+                5
+            ),
+            (
+                gallow_position_x,
+                gallow_position_y - 20,
+                gallow_position_x - 20,
+                gallow_position_y - 40,
+                arcade.color.RICH_BLACK,
+                5
+            ),
+            (
+                gallow_position_x,
+                gallow_position_y - 55,
+                gallow_position_x - 20,
+                gallow_position_y - 80,
+                arcade.color.RICH_BLACK,
+                5
+            ),
+            (
+                gallow_position_x,
+                gallow_position_y - 55,
+                gallow_position_x + 20,
+                gallow_position_y - 80,
+                arcade.color.RICH_BLACK,
+                5
+            )
+        ]
+
+        for i in range(self.game_logic.get_fail_count()):
+            if i == 0:
+                arcade.draw_circle_outline(*hangman_parts[i])
+            else:
+                arcade.draw_line(*hangman_parts[i])
+
 
     def handle_word_line_draw(self):
         underscore_width = 40

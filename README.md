@@ -38,3 +38,7 @@ uv run main.py
 - `guess_word(word)` checks a full-word guess
 - `calculate_score(...)` computes points based on progress and mistakes
 - `reset()` clears state for a new round
+
+## Final Notes
+
+- It needs a lot of work. I will improve it when I have time.
